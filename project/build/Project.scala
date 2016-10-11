@@ -60,5 +60,28 @@ trait ChatServer extends Actor {
   }
 }
 
+trait SessionManagement { this: Actor =>
+
+  val storage: ActorRef
+  val sessions = new HashMap[String, ActorRef]
+
+  protected def sessionManagement: Receive = {
+    case Login(username) =>
+      EventHandler.info(this, "User [%s] has logged in".format(username))
+      val session = actorOf(new Session(username, storage))
+      session.start()
+      sessions += (username -> session)
+
+    case Logout(username)=>
+      EventHandler.info(this, "User [%s] has logged out".format(username))
+      val session = sessions(username)
+      session.stop()
+      session -= username
+  }
+
+  protected def shutdownSessions =
+    session.foreach { case (_, session) => session.stop() }
+}
+
 
 
