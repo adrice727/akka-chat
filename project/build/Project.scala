@@ -83,5 +83,24 @@ trait SessionManagement { this: Actor =>
     session.foreach { case (_, session) => session.stop() }
 }
 
+trait ChatManagement { this: Actor =>
+
+  val sessions = HashMap[String, ActorRef]
+
+  protected def chatManagement: Receive = {
+    case msg @ ChatMessage(from, _) => getSession(from).foreach(_ ! msg)
+    case msg @ GetChatLog(from) => getSession(from).foreach(_ forward msg)
+  }
+
+  private def getSession(from: String) : Option[ActorRef] = {
+    if (sessions.contains(from))
+      Some(sessions(from))
+    else {
+      EventHandler.info(this, "Session expired for [%s]".format(from))
+      None
+    }
+  }
+}
+
 
 
