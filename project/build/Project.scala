@@ -39,7 +39,7 @@ class Session(user: String, storage: ActorRef) extends Actor {
 }
 
 trait ChatServer extends Actor {
-  self.faultHandler = OneForOneStrategy(List(classOf[Exception]),5, 5000)
+  self.faultHandler = OneForOneStrategy(List(classOf[Exception]), 5, 5000)
   val storage: ActorRef
 
   EventHandler.info(this, "Chat server is starting up . . .")
@@ -60,7 +60,8 @@ trait ChatServer extends Actor {
   }
 }
 
-trait SessionManagement { this: Actor =>
+trait SessionManagement {
+  this: Actor =>
 
   val storage: ActorRef
   val sessions = new HashMap[String, ActorRef]
@@ -72,7 +73,7 @@ trait SessionManagement { this: Actor =>
       session.start()
       sessions += (username -> session)
 
-    case Logout(username)=>
+    case Logout(username) =>
       EventHandler.info(this, "User [%s] has logged out".format(username))
       val session = sessions(username)
       session.stop()
@@ -83,7 +84,8 @@ trait SessionManagement { this: Actor =>
     session.foreach { case (_, session) => session.stop() }
 }
 
-trait ChatManagement { this: Actor =>
+trait ChatManagement {
+  this: Actor =>
 
   val sessions = HashMap[String, ActorRef]
 
@@ -92,7 +94,7 @@ trait ChatManagement { this: Actor =>
     case msg @ GetChatLog(from) => getSession(from).foreach(_ forward msg)
   }
 
-  private def getSession(from: String) : Option[ActorRef] = {
+  private def getSession(from: String): Option[ActorRef] = {
     if (sessions.contains(from))
       Some(sessions(from))
     else {
@@ -103,13 +105,13 @@ trait ChatManagement { this: Actor =>
 }
 
 /**
- * Abstraction of chat storage holding the chat log.
- */
+  * Abstraction of chat storage holding the chat log.
+  */
 trait ChatStorage extends Actor
 
 /**
- * Memory-backed chat storage implementation.
- */
+  * Memory-backed chat storage implementation.
+  */
 class ChatMemoryStorage extends ChatStorage {
   self.lifecycle = Permanent
 
@@ -119,10 +121,14 @@ class ChatMemoryStorage extends ChatStorage {
   def receive = {
     case msg @ ChatMessage(from, message) =>
       EventHandler.debug(this, "New chat message [%s]".format(message))
-      atomic { chatLog + message.getBytes("UTF-8") }
+      atomic {
+        chatLog + message.getBytes("UTF-8")
+      }
 
     case GetChatLog(_) =>
-      val messageList = atomic { chatLog.map(bytes => new String(bytes, "UTF-8")).toList }
+      val messageList = atomic {
+        chatLog.map(bytes => new String(bytes, "UTF-8")).toList
+      }
       self.reply(ChatLog(messageList))
   }
 
@@ -132,8 +138,20 @@ class ChatMemoryStorage extends ChatStorage {
 /**
   * Creates and links a MemoryChatStorage.
   */
-trait MemoryChatStorageFactory { this: Actor =>
+trait MemoryChatStorageFactory {
+  this: Actor =>
   val storage = this.self.spawnLink[MemoryChatStorage]
+}
+
+class ChatService extends
+  ChatServer with
+  SessionManagement with
+  ChatManagement with
+  MemoryChatStorageFactory {
+  override def preStart() {
+    remote.start("localhost", 2552)
+    remote.register("chat:service", self)
+  }
 }
 
 
